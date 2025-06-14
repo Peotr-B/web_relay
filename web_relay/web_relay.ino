@@ -7,6 +7,10 @@ https://robotchip.ru/obzor-modulya-rele-dlya-esp8266-01s-esp-01s/?ysclid=m5a1xyk
 https://projectalt.ru/publ/arduino_esp8266_i_esp32/programmirovanie/esp8266_nodemcu_otpravka_soobshhenij_v_whatsapp/11-1-0-26
 ESP8266 NodeMCU: отправка сообщений в WhatsApp
 
+14июн25
+Разработал библиотеки для сокрытия информации по логинам и паролям на основе:
+https://www.instructables.com/Build-a-Custom-ESP8266-Arduino-WiFi-Library/
+и упорядочил скетч
 */
 
 #include <ESP8266WiFi.h>                      // Подключаем библиотеку ESP8266WiFi
@@ -14,13 +18,26 @@ ESP8266 NodeMCU: отправка сообщений в WhatsApp
 #include <WiFiClient.h>
 #include <UrlEncode.h>
 
-const char* ssid = "*****";     // Название Вашей WiFi сети
-const char* password = "*****";// Пароль от Вашей WiFi сети
+#include <My_WiFi.h>
+My_WiFi my_wifi; // создаём экземпляр нашего класса
+const char* ssid = my_wifi.ssid();
+const char* pass = my_wifi.passcode();
+
+#include <My_WhatsApp.h>
+My_WhatsApp my_whatsapp; // создаём экземпляр нашего класса
+String phoneNumber = my_whatsapp.phoneNumber();
+String apiKeyW = my_whatsapp.apiKeyW();
+
+
+
+
+//const char* ssid = "Pauk17414";     // Название Вашей WiFi сети
+//const char* pass = "19LaFiLat93";// Пароль от Вашей WiFi сети
 
 // +international_country_code + phone number
 // Portugal +351, example: +351912345678
-String phoneNumber = "+7*****";
-String apiKey = "*****";
+//String phoneNumber = "+79150924666";
+//String apiKeyW = "8111017";
 
 #define RELAY 0                               // Пин к которому подключен датчик
 WiFiServer server(80);                        // Указываем порт Web-сервера
@@ -29,7 +46,7 @@ WiFiServer server(80);                        // Указываем порт Web
 void sendMessage(String message){
 
  // Data to send with HTTP POST
- String url = "http://api.callmebot.com/whatsapp.php?phone=" + phoneNumber + "&apikey=" + apiKey + "&text=" + urlEncode(message);
+ String url = "http://api.callmebot.com/whatsapp.php?phone=" + phoneNumber + "&apikey=" + apiKeyW + "&text=" + urlEncode(message);
  WiFiClient client; 
  HTTPClient http;
  http.begin(client, url);
@@ -56,6 +73,9 @@ void sendMessage(String message){
  http.end();
 }
 
+void ConnecTOWifi(void) ;
+byte tries = 20;  // Попыткок подключения к точке доступа
+ 
 void setup(){
   delay(2200);      
   Serial.begin(115200);                       // Скорость передачи 115200 
@@ -63,10 +83,14 @@ void setup(){
   pinMode(RELAY,OUTPUT);                      // Указываем вывод RELAY как выход
   digitalWrite(RELAY, LOW);                   // Устанавливаем RELAY в LOW (0В)
   Serial.println();                           // Печать пустой строки 
+  
+  ConnecTOWifi();
+  delay(2000);	//2-секундная задержка
+ /* 
   Serial.print("Connecting to ");             // Печать "Подключение к:"
   Serial.println(ssid);                       // Печать "Название Вашей WiFi сети"
  
-  WiFi.begin(ssid, password);                 // Подключение к WiFi Сети
+  WiFi.begin(ssid, pass);                 // Подключение к WiFi Сети
  
   while (WiFi.status() != WL_CONNECTED)       // Проверка подключения к WiFi сети
   { 
@@ -78,18 +102,39 @@ void setup(){
 
   Serial.print("Connected to WiFi network with IP Address: ");
   Serial.println(WiFi.localIP());
-
+*/
  // Send Message to WhatsAPP
  //Отправка контрольного сообщения на WhatsAPP
  sendMessage("Hello from ESP8266!");
  
   server.begin();                             // Запуск сервера
   Serial.println("Server started");           // Печать "Server starte"
-  Serial.print("Use this URL to connect: ");  // Печать "Use this URL to connect:" 
-  Serial.print(WiFi.localIP());               // Печать выданого IP адресса          
+  Serial.println("Use this URL to connect: ");  // Печать "Use this URL to connect:" 
+  Serial.println(WiFi.localIP());               // Печать выданого IP адресса          
+
+ 
+Serial.print("phoneNumber: ");
+Serial.println(phoneNumber);
+
+Serial.print("apiKeyW: ");
+Serial.println(apiKeyW);
+
+Serial.print("ssid: ");
+Serial.println(ssid);
+
+Serial.print("pass: ");
+Serial.println(pass);
+
+delay(10000);
+
 }
  
 void loop(){
+	
+	// Reconnect to Wi-Fi
+    if(WiFi.status() != WL_CONNECTED)
+		ConnecTOWifi();
+	
    WiFiClient client = server.available();    // Получаем данные, посылаемые клиентом 
   if (!client)                                
   {
@@ -145,4 +190,37 @@ void loop(){
   delay(1);
   Serial.println("Client disonnected");
   Serial.println("");
+}
+
+void ConnecTOWifi()
+{   Serial.print("Connecting to ");             // Печать "Подключение к:"
+    Serial.println(ssid);                       // Печать "Название Вашей WiFi сети"
+	WiFi.mode(WIFI_STA); // nodemcu as station
+	WiFi.begin(ssid, pass);                 // Подключение к WiFi Сети
+//	Serial.print ("connecting to wifi");
+	while (--tries && WiFi.status() != WL_CONNECTED)
+	{
+		delay(500);                               // Пауза 500 мкс
+        Serial.print(".");                        // Печать "."
+        Serial.print(tries);
+	}
+	
+	if (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.println();
+    Serial.println("Non Connecting to WiFi..");
+    tries=20;
+  }
+  else
+  {
+    // Иначе удалось подключиться отправляем сообщение
+    // о подключении и выводим адрес IP
+    Serial.println("");
+    Serial.println("WiFi connected");
+   	Serial.print("IP Address:");
+	  Serial.println(WiFi.localIP());
+	  Serial.print("MacAddress:");
+	  Serial.println(WiFi .macAddress());
+  }
+
 }
